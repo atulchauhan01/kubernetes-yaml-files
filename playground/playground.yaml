@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: httpd-frontend
+  labels:
+    app: mywebsite
+    tier: frontend
+spec:
+  replicas: 3
+  template:
+    #POD definitin under template, except apiVersion and kind
+    metadata:
+      name: httpd-frontend
+      labels:
+        app: myapp
+    spec:
+      containers:
+        - name: httpd-frontend
+          image: httpd:2.4-alpine
+  selector:
+    matchLabels:
+      app: myapp
