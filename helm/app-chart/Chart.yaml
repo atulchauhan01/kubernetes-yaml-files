@@ -1,0 +1,13 @@
+apiVersion: v2
+name: app-chart
+description: A Helm chart for Kubernetes
+type: application
+
+# This is the chart version
+version: 1.0.0
+
+# This is the version number of the application being deployed.
+appVersion: 1.0.0
+
+## Example code from http://docs.shippable.com/deploy/tutorial/deploy-to-gcp-gke-helm/
+## https://github.com/devops-recipes/cd_gke_helm

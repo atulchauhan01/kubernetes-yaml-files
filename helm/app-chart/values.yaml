@@ -1,0 +1,13 @@
+ngnixApp:
+  label: nginx-deploy
+  replicaCount: 1
+  image:
+    repo: nginx
+    tag: latest
+
+postgresApp:
+  label: postgres-deploy
+  replicaCount: 1
+  image:
+    repo: postgres
+    tag: latest
