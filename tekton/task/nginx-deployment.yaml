@@ -1,11 +1,11 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Values.ngnixApp.label }}
+  name: nginx-deploy
   labels:
-    app: {{ .Values.ngnixApp.label }}
+    app: nginx-deploy
 spec:
-  replicas: {{ .Values.ngnixApp.replicaCount }}
+  replicas: 3
   template:
     #POD definitin under template, except apiVersion and kind
     metadata:
@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: nginx
-          image: {{ .Values.ngnixApp.image.repo }}:{{ .Values.ngnixApp.image.tag }}
+          image: nginx
   selector:
     matchLabels:
       app: myapp
