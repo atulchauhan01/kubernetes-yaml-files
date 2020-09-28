@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: nginx
-          image: nginx
+          image: IMAGE
   selector:
     matchLabels:
       app: myapp
