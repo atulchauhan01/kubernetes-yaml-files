@@ -1,8 +1,0 @@
-apiVersion: tekton.dev/v1beta1
-kind: TaskRun
-metadata:
-  generateName: deploy-application-run-
-  namespace: default
-spec:
-  taskRef:
-    name: deploy-application
