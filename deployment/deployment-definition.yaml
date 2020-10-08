@@ -6,7 +6,7 @@ metadata:
     app: mywebsite
     tier: frontend
 spec:
-  replicas: 4
+  replicas: 1
   template:
     #POD definitin under template, except apiVersion and kind
     metadata:
