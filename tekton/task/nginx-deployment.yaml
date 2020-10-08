@@ -5,7 +5,7 @@ metadata:
   labels:
     app: nginx-deploy
 spec:
-  replicas: 3
+  replicas: 1
   template:
     #POD definitin under template, except apiVersion and kind
     metadata:
@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: nginx
-          image: nginx
+          image: IMAGE
   selector:
     matchLabels:
       app: myapp
