@@ -27,7 +27,7 @@ pipeline {
                 sh "cat ./deployment/deployment-sed-image-tag.yaml"
 
                 script {
-                    kubernetesDeploy(configs: "deployment/deployment-sed-image-tag.yaml", kubeconfigId: "my_kubeconfig")
+                    kubernetesDeploy(configs: "deployment/deployment-sed-image-tag.yaml", kubeconfigId: "iks_kubeconfig")
                 }
             }
         }
@@ -35,11 +35,11 @@ pipeline {
         stage('var-substitution and deploy') {
             steps {
                 script {
-                    kubernetesDeploy(configs: "deployment/deployment-var-substitution.yaml", kubeconfigId: "my_kubeconfig")
+                    kubernetesDeploy(configs: "deployment/deployment-var-substitution.yaml", kubeconfigId: "iks_kubeconfig")
                 }
             }
         }
-
+/*
         stage('Deploy App using sh command (without plugin)') {
             steps {
                 withCredentials([
@@ -48,7 +48,7 @@ pipeline {
                     sh 'kubectl --token $api_token --server https://172.21.228.8:8443 --insecure-skip-tls-verify=true apply -f deployment/deployment-definition.yaml '
                     }
             }
-        }    
+        }    */
 /*
         stage('Deploy Hellowhale App') {
             steps {
