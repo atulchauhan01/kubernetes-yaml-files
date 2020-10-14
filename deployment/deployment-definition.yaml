@@ -1,5 +1,5 @@
 apiVersion: apps/v1
-kind: Deployment-123
+kind: Deployment
 metadata:
   name: frontend
   labels:
@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: nginx
-          image: nginx-123
+          image: nginx
   selector:
     matchLabels:
       app: myapp
