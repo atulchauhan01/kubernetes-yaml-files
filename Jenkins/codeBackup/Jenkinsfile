@@ -1,0 +1,87 @@
+pipeline {
+
+    agent any
+  
+ 
+    
+
+    environment {
+        TAG    = 'nginx:latest'
+        dockerHubUser = 'atulchauhan01'
+        dockerHubPassword = 'Vel@09876'
+        dockerImage = 'atulchauhan01/hello-world-test'
+        registry = 'atulchauhan01/hello-world-test'
+    }    
+
+    stages {
+
+        stage('Checkout Source') {
+            steps {
+                git url:'https://github.com/atulchauhan01/kubernetes-yaml-files.git', branch:'master'
+            }
+        }
+
+        
+        stage('Update image tag and deploy') {
+            steps {
+                echo "path is ${PATH}"
+                sh 'echo ehllo'
+                echo "${BUILD_ID}"
+                echo "Before sed ---------->"
+                
+                sh "sed -i 's;IMAGE;${TAG};g' ./deployment/deployment-sed-image-tag.yaml"
+                echo "after sed ---------->${TAG}"
+                
+
+                script {
+                    kubernetesDeploy(configs: "deployment/*", kubeconfigId: "iks_kubeconfig")
+                }
+            }
+        }
+        
+       stage('Deploy App using sh command (without plugin)') {
+            steps {
+                withCredentials([
+                    string(credentialsId: 'iks_jenkins_secrets', variable: 'api_token')
+                    ]) {
+                    sh 'kubectl --token $api_token --server https://c6.mil01.containers.cloud.ibm.com:21086 --insecure-skip-tls-verify=true apply -f deployment/deployment-definition.yaml '
+                    }
+            }
+        }   
+        
+/*    stage('Apply Kubernetes Files') {
+      steps {
+          withKubeConfig([credentialsId: 'iks_kubeconfig']) {
+          sh 'kubectl apply -f deployment/deployment-definition.yaml'
+        }
+      }
+    }*/
+        
+/*       stage('var-substitution and deploy') {
+            steps {
+                script {
+                    kubernetesDeploy(configs: "deployment/deployment-var-substitution.yaml", kubeconfigId: "my_kubeconfig")
+                }
+            }
+        }*/
+
+/*        stage('Deploy App') {
+            steps {
+                script {
+                kubernetesDeploy(configs: "hellowhale.yaml", kubeconfigId: "my_kubeconfig")
+                }
+            }
+        }
+
+        stage('Deploy App-2') {
+            steps {
+                script {
+                kubernetesDeploy(configs: "deployment/deployment-definition.yaml", kubeconfigId: "my_kubeconfig")
+                }
+            }
+        }
+*/
+    }
+    
+
+}

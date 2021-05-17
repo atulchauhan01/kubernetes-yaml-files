@@ -1,0 +1,119 @@
+pipeline {
+
+    agent any
+
+    environment {
+        CLUSTER    = 'dev'
+    }
+
+    stages {
+
+        stage('Zero'){
+            steps {
+                echo 'Zero stage'
+
+                script {
+                    def browsers = ['chrome', 'firefox']
+                    for (int i = 0; i < browsers.size(); ++i) {
+                        echo "Testing the ${browsers[i]} browser"
+                    }
+
+                    if (true) {
+                        echo 'in if condition'
+                    } else {
+                        echo 'in else condition'
+                    }
+                }
+            }
+
+        }
+
+        stage('One') {
+            steps {
+                echo 'Hi, this is stage one'
+            }
+        }
+
+        stage('Two') {
+            steps {
+            input('Do you want to proceed?')
+            }
+        }
+
+        stage('Three') {
+            when {
+                not {
+                    branch "master"
+                }
+            }
+            steps {
+                echo "Hello"
+            }
+        }
+
+        stage('deploy to non-prod cluster') {      
+            // environment based canditon can be used for execution control      
+            when { 
+                environment name: 'CLUSTER', value: 'dev' 
+            }
+            steps {
+                echo "ENVIRONMENT CHECK"
+            }
+        }
+
+        stage('Four') {
+            when { 
+                environment name: 'CLUSTER', value: 'dev' 
+            }
+            failFast true
+            parallel { 
+                stage('Unit Test') {
+                    steps {
+                        echo "Running the unit test..."
+                    }
+                }
+                stage('Integration Test') {
+                    steps {
+                        echo "Running the integration test..."
+                    }
+                }                
+/*
+                stage('Integration test') {
+                    agent {
+                        docker {
+                                reuseNode true
+                                image 'ubuntu'
+                                }
+                        }
+                    steps {
+                        echo "Running the integration test..."
+                    }
+                }
+*/
+
+            }
+        }
+
+
+        stage('Four') {
+            when { 
+                environment name: 'CLUSTER', value: 'dev' 
+            }
+            failFast true
+                stage('Unit Test') {
+                    steps {
+                        echo "Running the unit test..."
+                    }
+                }
+                stage('Integration Test') {
+                    steps {
+                        echo "Running the integration test..."
+                    }
+                }
+
+        }
+
+
+
+    }
+}

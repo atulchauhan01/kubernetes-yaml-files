@@ -4,15 +4,19 @@ pipeline {
 
     environment {
         TAG    = 'nginx:latest'
+        dockerHubUser = 'atulchauhan01'
+        dockerHubPassword = 'Vel@09876'
+        registry = 'atulchauhan01/hello-world-test'
     }
 
 
     stages {
 
         stage('Checkout Source') {
-        steps {
-            git url:'https://github.com/atulchauhan01/kubernetes-yaml-files.git', branch:'master'
-        }
+            steps {
+                git url:'https://github.com/atulchauhan01/kubernetes-yaml-files.git', branch:'master'
+                git url: 'git@github.ibm.com:cmus/sim.git', credentialsId: 'ibm_github_credentials',  branch:'master'
+            }
         }
 
         stage('Update image tag using sed command and deploy') {
@@ -39,7 +43,7 @@ pipeline {
                 }
             }
         }
-/*
+
         stage('Deploy App using sh command (without plugin)') {
             steps {
                 withCredentials([
@@ -48,7 +52,20 @@ pipeline {
                     sh 'kubectl --token $api_token --server https://172.21.228.8:8443 --insecure-skip-tls-verify=true apply -f deployment/deployment-definition.yaml '
                     }
             }
-        }    */
+        }   
+
+    stage('Docker Push') {
+      steps {
+        withCredentials([usernamePassword(credentialsId: 'dockerhub', passwordVariable: 'dockerHubPassword', usernameVariable: 'dockerHubUser')]) {
+          sh "echo ${env.dockerHubPassword} | docker login --username ${env.dockerHubUser} --password-stdin"
+          sh "docker push atulchauhan01/hello-world-test"
+        }
+      }
+    } 
+
+/*
+
+*/        
 /*
         stage('Deploy Hellowhale App') {
             steps {
