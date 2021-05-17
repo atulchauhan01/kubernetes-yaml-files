@@ -8,7 +8,7 @@ pipeline {
     environment {
         TAG    = 'nginx:latest'
         dockerHubUser = 'atulchauhan01'
-        dockerHubPassword = 'Vel@09876'
+        dockerHubPassword = '----'
         dockerImage = 'atulchauhan01/hello-world-test'
         registry = 'atulchauhan01/hello-world-test'
     }    
