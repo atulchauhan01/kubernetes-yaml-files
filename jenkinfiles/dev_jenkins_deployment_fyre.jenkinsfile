@@ -1,0 +1,75 @@
+pipeline {
+
+    agent any
+    
+    parameters {
+        string(name: 'TAG', defaultValue: 'nginx:latest', description: 'Deployment tag')
+    }
+
+    environment {
+        // TAG    = 'nginx:latest'
+        TAG = "${TAG}"
+    }    
+
+    stages {
+        stage('Read Parameters and environment variables') {
+            steps {
+                echo "Current TAG ${TAG}"
+			}               
+        }
+
+        stage('Checkout Source Code') {
+            steps {
+                echo "checkout souce code"
+                git url: 'git@github.ibm.com:Atul-Chauhan4/poc-sim-deployment-automation.git', credentialsId: 'ibm_github_credentials',  branch:'master'
+            }
+        }
+
+        stage('Pull Docker Image from 1st repo') {
+            steps {
+                    echo "pull docker Image"
+                    withCredentials([usernamePassword(credentialsId: 'artifactory_repo',  usernameVariable: 'artifactoryUser', passwordVariable: 'artifactoryPassword')]) {
+                    sh "echo ${artifactoryPassword} | docker login --username ${artifactoryUser} --password-stdin http://wce-sim-service-docker-local.artifactory.swg-devops.com"
+                    sh "docker pull wce-sim-service-docker-local.artifactory.swg-devops.com/sim/webserver/master/8429:1.0"
+
+                    // create new tag
+                    sh "docker tag wce-sim-service-docker-local.artifactory.swg-devops.com/sim/webserver/issue.672/9121:1.0 us.icr.io/inventory-mgmt-np/sim/webserver/issue.672/9121:1.0"
+                    sh "docker logout"
+                }
+                }
+        }
+
+        stage('Push Docker image to IKS repository (2nd repo)') {
+            steps {
+                echo "push docker image to IKS repository"
+                withCredentials([usernamePassword(credentialsId: 'iks_repo',  usernameVariable: 'iksRepoUser', passwordVariable: 'iksRepoPassword')]) {
+                    sh "echo ${iksRepoPassword} | docker login --username ${iksRepoUser} --password-stdin us.icr.io"
+                    sh "docker pull us.icr.io/inventory-mgmt-np/sim/webserver/issue.672/9121:1.0"
+                    sh "docker logout"
+                }
+            }
+        }
+        
+        
+        stage('Deployment to 1st cluster') {
+            steps {
+                script {
+                    echo "apply specific Deployment"                        
+                    kubernetesDeploy(configs: "deployment-automation-test/deployments/sim-1.yaml", kubeconfigId: "iks_kubeconfig")
+                }
+            }
+        }
+        
+       stage('Deploy App using sh command (without plugin)') {
+            steps {
+                withCredentials([
+                    string(credentialsId: 'iks_jenkins_secrets', variable: 'api_token')
+                    ]) {
+                    sh 'kubectl --token $api_token --server https://c6.hou02.containers.cloud.ibm.com:29730 --insecure-skip-tls-verify=true apply -f deployment/deployment-definition.yaml '
+                    }
+            }
+        }           
+
+    }
+    
+}

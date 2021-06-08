@@ -1,0 +1,145 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kong
+  namespace: default
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: kong
+  template:
+    metadata:
+      labels:
+        app: kong
+      annotations:
+        prometheus.io/port: '8001'
+        prometheus.io/scrape: 'true'
+    spec:
+      containers:
+        - name: kong
+          image: 'kong:2.0.2'
+          env:
+            - name: KONG_DATABASE
+              value: cassandra
+            - name: KONG_CASSANDRA_CONTACT_POINTS
+              valueFrom:
+                configMapKeyRef:
+                  name: cassandra-configurations
+                  key: kong.contactpoints
+            - name: KONG_CASSANDRA_KEYSPACE
+              valueFrom:
+                configMapKeyRef:
+                  name: cassandra-configurations
+                  key: kong.keyspace
+            - name: KONG_CASSANDRA_LB_POLICY
+              valueFrom:
+                configMapKeyRef:
+                  name: cassandra-configurations
+                  key: kong.lb_policy
+            - name: KONG_CASSANDRA_LOCAL_DATACENTER
+              valueFrom:
+                configMapKeyRef:
+                  name: cassandra-configurations
+                  key: kong.local_datacenter
+            - name: KONG_CASSANDRA_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: cassandra-credentials
+                  key: username
+            - name: KONG_CASSANDRA_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: cassandra-credentials
+                  key: password
+            - name: KONG_PROXY_ACCESS_LOG
+              value: /dev/stdout
+            - name: KONG_ADMIN_ACCESS_LOG
+              value: /dev/stdout
+            - name: KONG_PROXY_ERROR_LOG
+              value: /dev/stdout
+            - name: KONG_ADMIN_ERROR_LOG
+              value: /dev/stdout
+            - name: KONG_ADMIN_LISTEN
+              value: '0.0.0.0:8001'
+            - name: KONG_ADMIN_LISTEN_SSL
+              value: '0.0.0.0:8444'
+            - name: KONG_TRUSTED_IPS
+              value: 0.0.0.0/0
+          ports:
+            - name: p1
+              containerPort: 8000
+            - name: p2
+              containerPort: 8443
+            - name: p3
+              containerPort: 8001
+            - name: p4
+              containerPort: 8444
+          resources:
+            limits:
+              cpu: 500m
+              memory: 2G
+            requests:
+              cpu: 250m
+              memory: 1G
+          imagePullPolicy: IfNotPresent
+        - name: fluent-bit
+          image: fluent/fluent-bit:1.7-debug
+          env:
+            - name: FLUENT_BIT_POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: FLUENT_BIT_POD_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.uid 
+          ports:
+            - containerPort: 2020
+          volumeMounts:
+            - name: varlog
+              mountPath: /var/log
+            - name: fluent-bit-config
+              mountPath: /fluent-bit/etc/
+            - name: varlogpods
+              mountPath: /var/log/pods
+            - name: varlibdockercontainers
+              mountPath: /var/lib/docker/containers
+              readOnly: true
+            - name: varlibcontainers
+              mountPath: /var/lib/containers
+              readOnly: true  
+            - name: kafka-pem-volume
+              mountPath: /certs
+            - name: fluent-bit-lua
+              mountPath: /fluent-bit/lua
+      volumes:
+        - name: varlog
+          hostPath:
+            path: /var/log
+        - name: varlogpods
+          hostPath:
+            path: /var/log/pods
+        - name: varlibdockercontainers
+          hostPath:
+            path: /var/lib/docker/containers
+        - name: varlibcontainers
+          hostPath:
+            path: /var/lib/containers
+        - name: fluent-bit-config
+          configMap:
+            name: fluent-bit-config
+        - name: kafka-pem-volume
+          configMap:
+            defaultMode: 420
+            items:
+              - key: keystore.pem
+                path: kafka.keystore.pem
+            name: kafka-pem 
+        - name: fluent-bit-lua
+          configMap:
+            defaultMode: 420
+            items:
+              - key: luascript
+                path: fluent_bit.lua
+            name: fluent-bit-lua

@@ -1,0 +1,60 @@
+# service-account need to be created before deployment using service-account.yaml
+
+# This task has steps that helps in debug
+# It will print all file in workspace folder
+# Code to read specific file from the GIT repository
+# and make the deployment
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: deployment-nginx-task
+spec:
+  resources:
+    inputs:
+      - name: workspace
+        type: git
+  params:
+    - name: imageUrl
+      type: string
+      description: Url of image repository
+      default: nginx-test
+    - name: imageTag
+      type: string
+      description: Tag of the images to be used
+      default: latest-test
+  steps:
+    - name: build-and-push-1
+      image: ubuntu
+      command:
+      - /bin/bash
+      args:
+      - -c
+      - |
+        set -ex
+        find workspace/deployment-from-git
+#       find workspace/tekton/task 
+    - name: readme
+      image: ubuntu
+      script: cat workspace/deployment-from-git/deployment/nginx-deployment.yaml
+    - name: print-params
+      image: ubuntu
+      command: [echo]
+      args: ["Git source path is $(inputs.resources.workspace.path) | $(resources.inputs.workspace.path), ImageURl is $(params.imageUrl) and Tag is $(params.imageTag)"]
+    - name: update-yaml
+      image: alpine
+      command: ["sed"]
+      args:
+        - "-i"
+        - "-e"
+        - "s;IMAGE;$(params.imageUrl):$(params.imageTag);g"
+        - "workspace/deployment-from-git/deployment/nginx-deployment.yaml"    
+    - name: readme-2
+      image: ubuntu
+      script: cat $(inputs.resources.workspace.path)/deployment-from-git/deployment/nginx-deployment.yaml
+    - name: deploy-app
+      image: lachlanevenson/k8s-kubectl
+      command: ["kubectl"]
+      args:
+        - "apply"
+        - "-f"
+        - "workspace/deployment-from-git/deployment/nginx-deployment.yaml"

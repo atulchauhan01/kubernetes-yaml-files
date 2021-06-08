@@ -1,0 +1,45 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: workspace-task
+spec:
+  workspaces:
+  - name: messages
+    description: The folder where we write the message to
+    mountPath: /custom/path/relative/to/root
+  steps:
+    - name: print-message-1
+      image: ubuntu
+      command:
+      - /bin/bash
+      args:
+      - -c
+      - |
+        set -ex
+        find /workspace      
+    - name: write-message
+      image: ubuntu
+      script: |
+        #!/usr/bin/env bash
+        set -xe
+        echo hello! > $(workspaces.messages.path)/message
+    - name: print-message-2
+      image: ubuntu
+      command:
+      - /bin/bash
+      args:
+      - -c
+      - |
+        set -ex
+        find /workspace          
+---
+apiVersion: tekton.dev/v1beta1
+kind: TaskRun
+metadata:
+  generateName: workspace-task-run-
+spec:
+  taskRef:
+    name: workspace-task
+  workspaces:
+  - emptyDir: {}
+    name: messages

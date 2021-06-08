@@ -1,0 +1,25 @@
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  name: myapp-pdb
+spec:
+  selector:
+    matchLabels:
+      app: myapp
+  minAvailable: 2 # or 50%
+# or
+#
+# maxUnavailable: 1 or 50%        
+
+
+#> kubectl describe pdb backend-pdb --namespace=sim
+Name:           backend-pdb
+Namespace:      sim
+Min available:  1
+Selector:       type=backend
+Status:
+    Allowed disruptions:  31
+    Current:              32
+    Desired:              1
+    Total:                32
+Events:                   <none>

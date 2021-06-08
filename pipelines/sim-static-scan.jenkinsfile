@@ -1,0 +1,55 @@
+pipeline {
+
+    agent any
+
+    options {
+        // This is required if you want to clean before build
+        skipDefaultCheckout(true)
+    }
+
+    stages {
+        stage('CleanWorkspace') {
+            steps {
+                cleanWs()
+            }
+        }
+        
+        stage('Checkout Source Code') {
+            steps {
+                echo "checkout souce code"
+                git url: 'git@github.ibm.com:cmus/sim.git', credentialsId: 'ibm_github_credentials',  branch:'static-scan-q1-v1'
+            }
+        }
+
+        stage('Build the project'){
+                tools {
+                   jdk "jdk11"
+                }
+            steps {
+                echo "Build the project"
+                script {
+                  //  echo "${env.JAVA_HOME}"
+                //    echo "${env.PATH}"
+                    
+                   // echo "script section of build stage"
+                   // echo "${WORKSPACE}"
+                    //sh 'ls'
+                    sh 'java -version'
+                    //sh './gradle help'
+                    //sh './gradlew clean'
+                    //sh './gradlew build'
+                    //sh './gradlew shadowJar'
+                    //sh './gradlew appscan-prepare -X'
+                    //sh './gradlew appscan-analyze -DappId=7cec81c1-947f-40aa-ad97-56330bcac242 -DappscanKey=32ae1fbc-4b30-b64c-e89f-3a261b09bf99 -DappscanSecret=oor6PF3GeKK+yFW/UiPqk9uHNABjbBPINTkcSNPKzi8= -DUSE_STAGER=false'
+                    sh './gradlew appscan-analyze -DappId=7cec81c1-947f-40aa-ad97-56330bcac242 -DappscanKey=32ae1fbc-4b30-b64c-e89f-3a261b09bf99 -DappscanSecret=oor6PF3GeKK+yFW/UiPqk9uHNABjbBPINTkcSNPKzi8='
+                    withCredentials([usernamePassword(credentialsId: 'sim_app_scan_key_secret', usernameVariable: 'APPSCAN_KEY', passwordVariable: 'APPSCAN_SECRET')]) {
+                        //sh 'java -version'
+                        sh './gradlew appscan-analyze -DappId=7cec81c1-947f-40aa-ad97-56330bcac242 -DappscanKey=$APPSCAN_KEY -DappscanSecret=$APPSCAN_SECRET'
+                    }
+                }
+            }
+        }
+
+    }   
+    
+}    

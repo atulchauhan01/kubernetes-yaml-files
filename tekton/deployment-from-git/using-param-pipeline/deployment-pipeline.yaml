@@ -1,0 +1,39 @@
+#Pipeline to deploy nginx
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: deployment-pipeline
+spec:
+  resources:
+#this name should match with resource and resources.name in pipelineRun
+    - name: workspace-pipeline
+      type: git
+  params:
+    - name: imageUrl
+      type: string
+      description: Url of image repository
+      default: nginx
+    - name: imageTag
+      type: string
+      description: Tag of the images to be used
+      default: latest
+  tasks:
+  - name: apply-config-task
+    taskRef:
+      name: apply-config-task
+    resources:
+      inputs:
+        - name: workspace # this name should match with resources name in task
+          resource: workspace-pipeline
+  - name: deployment-nginx-task
+    taskRef:
+      name: deployment-nginx-task
+    params:
+    - name: imageTag
+      value: $(params.imageTag)
+    - name: imageUrl  
+      value: $(params.imageUrl)        
+    resources:
+      inputs:
+        - name: workspace # this name should match with resources name in task
+          resource: workspace-pipeline

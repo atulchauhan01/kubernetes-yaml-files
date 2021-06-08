@@ -1,0 +1,59 @@
+# service-account need to be created before deployment using service-account.yaml
+
+# This task has steps that helps in debug
+# It will print all file in workspace folder
+# Code to read specific file from the GIT repository
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: apply-config-task
+spec:
+  resources:
+    inputs:
+      - name: workspace
+        type: git
+  steps:
+    - name: fetch-print-files
+      image: ubuntu
+      command:
+      - /bin/bash
+      args:
+      - -c
+      - |
+        set -ex
+        find workspace/deployment-from-git
+    - name: read-config-yaml
+      image: ubuntu
+      script: cat workspace/deployment-from-git/config/config-test.yaml      
+#     Note: If the script field is present, the step cannot also contain a command field.      
+    - name: apply-config-map
+      image: lachlanevenson/k8s-kubectl
+      command: ["kubectl"]
+      args:
+        - "apply"
+        - "-f"
+        - "workspace/deployment-from-git/config/config-test.yaml"      
+           
+
+---
+# This task run will run using mentioned service account, will not use default
+# This YAML should be applied using kubectl create command
+# tkn task start <task-name> will generate serviceAccountName="" , so access issue comes
+#
+apiVersion: tekton.dev/v1beta1
+kind: TaskRun
+metadata:
+  name: apply-config-task-run
+spec:
+  serviceAccountName: service-account
+  taskRef:
+    name: apply-config-task
+  resources:
+    inputs:
+      - name: workspace
+        resourceRef:
+          name: deployment-example-git
+
+
+# Steps:
+# Create service account using service-account.yaml

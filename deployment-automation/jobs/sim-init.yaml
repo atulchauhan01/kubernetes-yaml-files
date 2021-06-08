@@ -1,0 +1,42 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: sim-init
+  namespace: ${NAMESPACE}
+spec:
+  template:
+    metadata:
+      labels:
+        app: sim-init
+    spec:
+      containers:
+      - name: sim-init
+        image: us.icr.io/inventory-mgmt-np/sim/webserver/${TAG}
+        args: ["init"]
+        env:
+         - name: SIM_CASSANDRA_KEYSPACE
+           valueFrom:
+             configMapKeyRef:
+               name: cassandra-configurations
+               key: sim.keyspace
+         - name: SIM_CASSANDRA_CONTACT_POINTS
+           valueFrom:
+             configMapKeyRef:
+               name: cassandra-configurations
+               key: sim.contactpoints
+         - name: SIM_CASSANDRA_USERNAME
+           valueFrom:
+             secretKeyRef:
+               name: cassandra-credentials
+               key: username
+         - name: SIM_CASSANDRA_PASSWORD
+           valueFrom:
+             secretKeyRef:
+               name: cassandra-credentials
+               key: password
+         - name: SIM_KAFKA_BOOTSTRAP_SERVERS
+           valueFrom:
+             configMapKeyRef:
+               name: kafka-configurations
+               key: sim_kafka_bootstrap_servers
+      restartPolicy: Never

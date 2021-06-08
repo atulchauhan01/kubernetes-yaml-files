@@ -1,0 +1,21 @@
+version: "3.8"
+
+services:
+    jenkins:
+        # build ./<folder containg Dockerfile and code>
+        image: jenkins_compose:latest
+        environment: 
+           JAVA_OPTS: -Djenkins.install.runSetupWizard=false
+           JENKINS_OPTS: --argumentsRealm.roles.user=admin --argumentsRealm.passwd.admin=admin --argumentsRealm.roles.admin=admin
+        ports:
+            - "8080:8080"
+        volumes:
+        #    - /c/Users/AtulChauhan/docker_jenkins_data_test:/var/jenkins_home
+            - jenkins_home:/var/jenkins_home
+            - /var/run/docker.sock:/var/run/docker.sock
+        build:
+            context: .
+
+volumes:
+   jenkins_home:
+       external: true

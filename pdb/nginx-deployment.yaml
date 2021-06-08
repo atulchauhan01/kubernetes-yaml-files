@@ -3,14 +3,12 @@ kind: Deployment
 metadata:
   name: frontend
   labels:
-    app: mywebsite
-    tier: frontend
+    app: myapp
 spec:
-  replicas: 1
+  replicas: 3
   template:
     #POD definitin under template, except apiVersion and kind
     metadata:
-      name: myapp-pod
       labels:
         app: myapp
     spec:

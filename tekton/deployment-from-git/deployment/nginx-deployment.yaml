@@ -1,10 +1,11 @@
+## This deploymetn file is not used in this example, 
+## deployment file is used from the Git repo https://github.com/atulchauhan01/kubernetes-yaml-files.git
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: frontend
+  name: nginx-deploy
   labels:
-    app: mywebsite
-    tier: frontend
+    app: nginx-deploy
 spec:
   replicas: 1
   template:
@@ -16,7 +17,7 @@ spec:
     spec:
       containers:
         - name: nginx
-          image: nginx
+          image: IMAGE
   selector:
     matchLabels:
       app: myapp

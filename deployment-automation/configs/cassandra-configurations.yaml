@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cassandra-configurations
+  namespace: ${NAMESPACE}
+data:
+  sim.keyspace: <sim-keyspace>
+  sim.contactpoints: <sim-contact-points>
+  kong.keyspace: <kong-keyspace>
+  kong.contactpoints: <kong-contact-points>

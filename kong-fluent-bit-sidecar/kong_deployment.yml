@@ -1,0 +1,179 @@
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: kong
+  namespace: default
+  selfLink: /apis/apps/v1/namespaces/default/deployments/kong
+  uid: c405c668-650e-11e9-85dd-626daaf411a8
+  resourceVersion: '137507263'
+  generation: 65
+  creationTimestamp: '2019-04-22T14:56:10Z'
+  labels:
+    app: kong
+  annotations:
+    deployment.kubernetes.io/revision: '24'
+    kubectl.kubernetes.io/last-applied-configuration: >
+      {"apiVersion":"apps/v1","kind":"Deployment","metadata":{"annotations":{},"name":"kong","namespace":"default"},"spec":{"replicas":1,"selector":{"matchLabels":{"app":"kong"}},"template":{"metadata":{"labels":{"app":"kong"}},"spec":{"containers":[{"env":[{"name":"KONG_DATABASE","value":"cassandra"},{"name":"KONG_CASSANDRA_CONTACT_POINTS","valueFrom":{"configMapKeyRef":{"key":"kong.contactpoints","name":"cassandra-configurations"}}},{"name":"KONG_CASSANDRA_KEYSPACE","valueFrom":{"configMapKeyRef":{"key":"kong.keyspace","name":"cassandra-configurations"}}},{"name":"KONG_CASSANDRA_LB_POLICY","valueFrom":{"configMapKeyRef":{"key":"kong.lb_policy","name":"cassandra-configurations"}}},{"name":"KONG_CASSANDRA_LOCAL_DATACENTER","valueFrom":{"configMapKeyRef":{"key":"kong.local_datacenter","name":"cassandra-configurations"}}},{"name":"KONG_CASSANDRA_USERNAME","valueFrom":{"secretKeyRef":{"key":"username","name":"cassandra-credentials"}}},{"name":"KONG_CASSANDRA_PASSWORD","valueFrom":{"secretKeyRef":{"key":"password","name":"cassandra-credentials"}}},{"name":"KONG_PROXY_ACCESS_LOG","value":"/dev/stdout"},{"name":"KONG_ADMIN_ACCESS_LOG","value":"/dev/stdout"},{"name":"KONG_PROXY_ERROR_LOG","value":"/dev/stderr"},{"name":"KONG_ADMIN_ERROR_LOG","value":"/dev/stderr"},{"name":"KONG_ADMIN_LISTEN","value":"0.0.0.0:8001"},{"name":"KONG_ADMIN_LISTEN_SSL","value":"0.0.0.0:8444"},{"name":"KONG_TRUSTED_IPS","value":"0.0.0.0/0"}],"image":"kong:0.14.1","name":"kong","ports":[{"containerPort":8000,"name":"p1"},{"containerPort":8443,"name":"p2"},{"containerPort":8001,"name":"p3"},{"containerPort":8444,"name":"p4"}]}]}}}}
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: kong
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: kong
+        prometheus.io/port: '8001'
+        prometheus.io/scrape: 'true'
+      annotations:
+        kubectl.kubernetes.io/restartedAt: '2021-02-02T17:00:50+05:30'
+    spec:
+      containers:
+        - name: kong
+          image: 'kong:2.0.2'
+          ports:
+            - name: p1
+              containerPort: 8000
+              protocol: TCP
+            - name: p2
+              containerPort: 8443
+              protocol: TCP
+            - name: p3
+              containerPort: 8001
+              protocol: TCP
+            - name: p4
+              containerPort: 8444
+              protocol: TCP
+          env:
+            - name: KONG_DATABASE
+              value: cassandra
+            - name: KONG_CASSANDRA_CONTACT_POINTS
+              valueFrom:
+                configMapKeyRef:
+                  name: cassandra-configurations
+                  key: kong.contactpoints
+            - name: KONG_CASSANDRA_KEYSPACE
+              valueFrom:
+                configMapKeyRef:
+                  name: cassandra-configurations
+                  key: kong.keyspace
+            - name: KONG_CASSANDRA_LB_POLICY
+              valueFrom:
+                configMapKeyRef:
+                  name: cassandra-configurations
+                  key: kong.lb_policy
+            - name: KONG_CASSANDRA_LOCAL_DATACENTER
+              valueFrom:
+                configMapKeyRef:
+                  name: cassandra-configurations
+                  key: kong.local_datacenter
+            - name: KONG_CASSANDRA_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: cassandra-credentials
+                  key: username
+            - name: KONG_CASSANDRA_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: cassandra-credentials
+                  key: password
+            - name: KONG_PROXY_ACCESS_LOG
+              value: /dev/stdout
+            - name: KONG_ADMIN_ACCESS_LOG
+              value: /dev/stdout
+            - name: KONG_PROXY_ERROR_LOG
+              value: /dev/stdout
+            - name: KONG_ADMIN_ERROR_LOG
+              value: /dev/stdout
+            - name: KONG_ADMIN_LISTEN
+              value: '0.0.0.0:8001'
+            - name: KONG_ADMIN_LISTEN_SSL
+              value: '0.0.0.0:8444'
+            - name: KONG_TRUSTED_IPS
+              value: 0.0.0.0/0
+            - name: KONG_LOG_LEVEL
+              value: debug
+          resources:
+            limits:
+              cpu: 500m
+              memory: 2G
+            requests:
+              cpu: 250m
+              memory: 1G
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          imagePullPolicy: IfNotPresent
+        - name: fluent-bit
+          image: fluent/fluent-bit:1.4-debug
+          ports:
+            - containerPort: 2020
+          volumeMounts:
+            - name: varlog
+              mountPath: /var/log
+            - name: fluent-bit-config
+              mountPath: /fluent-bit/etc/
+            - mountPath: /certs
+              name: kafka-pem-volume
+            - name: varlogpods
+              mountPath: /var/log/pods
+            - name: varlibdockercontainers
+              mountPath: /var/lib/docker/containers
+              readOnly: true
+            - name: varlibcontainers
+              mountPath: /var/lib/containers
+              readOnly: true
+      volumes:
+        - name: varlog
+          hostPath:
+            path: /var/log    
+        - name: varlogpods
+          hostPath:
+            path: /var/log/pods
+        - name: varlibdockercontainers
+          hostPath:
+            path: /var/lib/docker/containers
+        - name: varlibcontainers
+          hostPath:
+            path: /var/lib/containers   
+        - name: fluent-bit-config
+          configMap:
+            name: fluent-bit-config
+        - name: kafka-pem-volume
+          configMap:
+            defaultMode: 420
+            items:
+              - key: keystore.pem
+                path: kafka.keystore.pem
+            name: kafka-pem 
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+      dnsPolicy: ClusterFirst
+      securityContext: {}
+      schedulerName: default-scheduler
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 25%
+      maxSurge: 25%
+  revisionHistoryLimit: 10
+  progressDeadlineSeconds: 600
+status:
+  observedGeneration: 65
+  replicas: 2
+  updatedReplicas: 2
+  readyReplicas: 2
+  availableReplicas: 2
+  conditions:
+    - type: Progressing
+      status: 'True'
+      lastUpdateTime: '2021-02-09T12:14:13Z'
+      lastTransitionTime: '2019-04-22T14:56:10Z'
+      reason: NewReplicaSetAvailable
+      message: ReplicaSet "kong-5b9b667f6" has successfully progressed.
+    - type: Available
+      status: 'True'
+      lastUpdateTime: '2021-02-15T13:15:05Z'
+      lastTransitionTime: '2021-02-15T13:15:05Z'
+      reason: MinimumReplicasAvailable
+      message: Deployment has minimum availability.

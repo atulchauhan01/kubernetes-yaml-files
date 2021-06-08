@@ -1,0 +1,14 @@
+# Pipeline resource for GIT
+apiVersion: tekton.dev/v1alpha1
+kind: PipelineResource
+metadata:
+  name: deployment-example-git
+spec:
+  type: git
+  params:
+    - name: revision
+      value: master
+    - name: url
+      value: https://github.com/atulchauhan01/tekton-examples.git
+#      value: https://github.com/atulchauhan01/kubernetes-yaml-files.git
+      

@@ -1,0 +1,209 @@
+pipeline {
+
+    agent any
+
+    parameters {
+        string(name: 'CURRENT_TAG', defaultValue: 'master/9608:1.0', description: "* Provide deployment tag (e.g. 'issue.672/9121:1.0'  OR 'master/9121:1.0')")
+
+        choice(name: 'CLUSTER', choices: ['Select cluster', 'DAL13', 'FRA02'], description: '* Select the cluster to proceed.')
+
+        booleanParam(name: 'APPLY_DEPLOYMENTS', defaultValue: false, description: '* Do you want to make new deployment?')
+
+        extendedChoice(
+            name: "DEPLOYMENTS_TO_APPLY",
+            type: "PT_CHECKBOX",
+            multiSelectDelimiter: ",",
+            value: "All,cleanup-backend.yaml,configsync.yaml,count-task-generator.yaml,countrequestpurge.yaml,eventpub.yaml,eventpull.yaml,moverequestpurge.yaml,pickrequestpurge.yaml,putaway-task-generator.yaml,putawaypurge.yaml,sim-iv.yaml,sim.yaml,ticker-server.yaml,ticker-consumer-not-req-use-count-task-gen-instead.yaml,batch-pick-generator.yaml,sim-streams-snapshot.yaml,inventory-adjustment.yaml",
+            defaultValue: "All",
+            description: "* Select specific deployment or All.",
+            quoteValue: false,
+            visibleItemCount: 5,
+            descriptionPropertyValue: "All,Backend Cleanup,Config Sync,Count Task Generator,Count Request Purge,Event Pub,Event Pull,Move Request Purge,Pick Request Purge,Put Away Task Generator,Put Away Purge,SIM IV,SIM,Ticker Server,Ticker Consumer,Batch Pick Generator,Sim Streams Snapshot,Sim Inventory Adjustment"
+        )       
+        
+    }
+
+    environment {
+        NAMESPACE = "sim"
+       // ALL_DEPLOYMENTS = "cleanup-backend,configsync,count-task-generator,countrequestpurge,eventpub,eventpull,moverequestpurge,pickrequestpurge,putaway-task-generator,putawaypurge,sim-iv,sim,ticker-server,ticker-consumer,inventory-adjustment"
+       //NP_NON_REQUIRED_DEPLOYMENTS = ""
+       //NP_REQUIRED_DEPLOYMENTS = ""
+       SERVER_URL = "https://c112.us-south.containers.cloud.ibm.com:31276"
+    }    
+
+    stages {
+        stage('Read Parameters and environment variables and verify') {
+            steps {
+                echo "APPLY_DEPLOYMENTS -> ${APPLY_DEPLOYMENTS}"
+                //echo "RESTART_DEPLOYMENTS -> ${RESTART_DEPLOYMENTS}"
+                echo "DEPLOYMENTS_TO_APPLY -> ${DEPLOYMENTS_TO_APPLY}"
+                echo "CLUSTER -> ${CLUSTER}"
+                script {
+                    if (params.CURRENT_TAG != '') {
+                        env.TAG = "${params.CURRENT_TAG}"
+                        echo "Current TAG value is >> ${TAG}"
+                    } else {
+                        env.TAG = ''
+                        echo "Current TAG is empty >> ${TAG}"
+                    }
+
+                    if(APPLY_DEPLOYMENTS == 'false'){
+                        echo "APPLY_DEPLOYMENTS and RESTART_DEPLOYMENTS are false"
+                        //sh "exit 1"
+                        error "APPLY_DEPLOYMENTS or RESTART_DEPLOYMENTS should be true"
+                    }
+
+                    if ("${CLUSTER}" == "DAL13") {
+                        echo "Selected cluster is DAL13"
+                        env.KUBECONFIG_ID = "np_dal_cluster_kubeconfig"
+                        env.JENKINS_SECRETS = "np_dal_jenkins_secrets"
+                        env.SERVER_URL = "https://c112.us-south.containers.cloud.ibm.com:31276"
+                        env.IKS_REPO_URL = "us.icr.io/inventory-mgmt-pr/sim/webserver"
+                        env.IKS_REPO_DOMAIN = "us.icr.io"
+
+                    } else if ("${CLUSTER}" == "FRA02") {
+                        echo "Selected cluster is FRA02"
+                        env.KUBECONFIG_ID = "fra_cluster_kubeconfig_sim"
+                        env.JENKINS_SECRETS = "fra_jenkins_secrets_sim"
+                        env.SERVER_URL = "https://c112.us-south.containers.cloud.ibm.com:31276"
+                        env.IKS_REPO_URL = "de.icr.io/inventory-mgmt-pr/sim/webserver"
+                        env.IKS_REPO_DOMAIN = "de.icr.io"
+
+                    } else {
+                       error "Select at-least one cluster for deployment." 
+                    }
+
+                    echo "KUBECONFIG_ID -> ${KUBECONFIG_ID}"
+                    echo "JENKINS_SECRETS -> ${JENKINS_SECRETS}"
+                    echo "SERVER_URL -> ${SERVER_URL}"
+                    echo "IKS_REPO_URL -> ${IKS_REPO_URL}"
+                    echo "IKS_REPO_DOMAIN -> ${IKS_REPO_DOMAIN}"
+                }
+            }
+        }
+
+        stage('Taint a node') {
+            steps {
+                echo "Taint a node 10.183.226.3"
+                script {
+                    withCredentials([string(credentialsId: "np_wdc_jenkins_secrets", variable: 'api_token')]) {
+                        //sh 'kubectl --token $api_token --server ${SERVER_URL} --insecure-skip-tls-verify=true rollout restart deployment/${depploymentVar} --namespace=${NAMESPACE} '
+                        sh 'kubectl --token $api_token --server ${SERVER_URL} --insecure-skip-tls-verify=true taint nodes 10.183.226.3 env=nonprod:PreferNoSchedule'
+                    }
+                }
+            }
+        } 
+
+        stage('Checkout Source Code') {
+            steps {
+                echo "checkout souce code"
+                git url: 'git@github.ibm.com:Atul-Chauhan4/poc-sim-deployment-automation.git', credentialsId: 'ibm_github_credentials',  branch:'master'
+            }
+        }
+
+        stage('Pull Docker Image from 1st repo') {
+            when {
+                expression { TAG != '' }
+            }
+            steps {
+                    echo "pull docker Image"
+                    echo "Tag >>> ${TAG}"
+                    withCredentials([usernamePassword(credentialsId: 'artifactory_repo',  usernameVariable: 'artifactoryUser', passwordVariable: 'artifactoryPassword')]) {
+                    sh "echo ${artifactoryPassword} | docker login --username ${artifactoryUser} --password-stdin http://wce-sim-service-docker-local.artifactory.swg-devops.com"
+                    sh "docker pull wce-sim-service-docker-local.artifactory.swg-devops.com/sim/webserver/${TAG}"
+
+                    // create new tag
+                    sh "docker tag wce-sim-service-docker-local.artifactory.swg-devops.com/sim/webserver/${TAG} ${IKS_REPO_URL}/${TAG}"
+                    sh "docker logout"
+                }
+                }
+        }
+
+        stage('Push Docker image to IKS repository (2nd repo)') {
+            when {
+                expression { TAG != '' }
+            }
+            steps {
+                echo "push docker image to IKS repository"
+                withCredentials([usernamePassword(credentialsId: 'iks_repo',  usernameVariable: 'iksRepoUser', passwordVariable: 'iksRepoPassword')]) {
+                    sh "echo ${iksRepoPassword} | docker login --username ${iksRepoUser} --password-stdin us.icr.io"
+                    sh "docker push ${IKS_REPO_URL}/${TAG}"
+                    sh "docker logout"
+                }
+            }
+        }
+
+        stage('Update Taints') {
+            steps {
+                echo "Remove nonprod taint from a specific Node"
+                echo "Add prod taint to the same Node"
+                script {
+                //This step can move in the last, till this step all deployments will be done
+                // PODs will be in pending state due to no resource available on node
+                // it will help to have 0 down time for non-prod deployments
+
+                //Use taint effect NoExecution
+                //kubectl taint nodes 10.186.66.25 env=nonprod:NoExecute
+                //kubectl taint nodes 10.186.66.25 env=prod:NoExecute
+
+                if ("${CLUSTER}" == "DAL13") {                        
+                        echo "Updating taints for DAL13 cluster's nodes"
+                        //Remove non-prod taint from 2 nodes (initailly having 3 nodes)
+                        //10.186.66.25
+                        //10.186.66.37
+                        //10.186.66.50
+
+                        //Add prod taint to the above mentioned two nodes
+
+                        script {
+                            withCredentials([string(credentialsId: "np_wdc_jenkins_secrets", variable: 'api_token')]) {
+                                //sh 'kubectl --token $api_token --server ${SERVER_URL} --insecure-skip-tls-verify=true rollout restart deployment/${depploymentVar} --namespace=${NAMESPACE} '
+                                sh 'kubectl --token $api_token --server ${SERVER_URL} --insecure-skip-tls-verify=true taint nodes 10.183.226.3 env=nonprod:PreferNoSchedule'
+                                sh 'kubectl --token $api_token --server ${SERVER_URL} --insecure-skip-tls-verify=true taint nodes 10.183.226.3 env=nonprod:PreferNoSchedule'
+                                sh 'kubectl --token $api_token --server ${SERVER_URL} --insecure-skip-tls-verify=true taint nodes 10.183.226.3 env=nonprod:PreferNoSchedule'
+                                sh 'kubectl --token $api_token --server ${SERVER_URL} --insecure-skip-tls-verify=true taint nodes 10.183.226.3 env=nonprod:PreferNoSchedule'
+                            }
+                        }                        
+
+                        
+
+                    } else if ("${CLUSTER}" == "FRA02") {
+                        echo "Updating taints for FRA02 cluster's nodes"
+                        //Remove non-prod taint from 2 nodes (initailly having 3 nodes)
+
+                        //Add prod taint to the above mentioned two nodes
+                        
+                    }
+                }
+            }
+        }
+
+        stage("NonProd | Scale down non-required deployment to 0"){
+            steps{
+                // pass list of non-required deployments in a loop and update deployment to replicas value to 0
+                echo "Scale down non-required deployment to 0"
+            }
+        } 
+
+        stage("NonProd | Scale down required deployment to a specific number"){
+            steps{
+                echo "Scale down required deployment to a specific number"
+                echo "eg. SIM, SIM-IV etc"
+            }
+        }
+
+        stage("Prod | Apply prod deployments"){
+            steps{
+                echo "Prod | Apply prod deployments"
+                //Namespace should be different for nonprod and prod deployment
+                //Apply all the deployment
+                
+
+
+                //Note: "Update Taints" stage can come before/after this stage too.
+            }
+        }
+
+    }
+    
+}    

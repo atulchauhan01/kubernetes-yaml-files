@@ -1,0 +1,308 @@
+pipeline {
+
+    agent any
+    
+    parameters {
+        string(name: 'CURRENT_TAG', defaultValue: '21042021_revert_issue672_changes_april_release_stream/9648:1.0', description: "Provide deployment tag (e.g. 'issue.672/9121:1.0'  OR 'master/9121:1.0')")
+
+        choice(name: 'CLUSTER', choices: ['Select cluster','WDC04', 'DAL13'], description: '* Select the cluster to proceed.')
+
+        choice(name: 'NAMESPACE', choices: ['Select namespace','default', 'sim'], description: '* Select namespace for the deployment')
+
+        booleanParam(name: 'APPLY_DEPLOYMENTS', defaultValue: false, description: 'Do you want to make new deployment?')
+
+        extendedChoice(
+            name: "DEPLOYMENTS_TO_APPLY",
+            type: "PT_CHECKBOX",
+            multiSelectDelimiter: ",",
+            value: "All,cleanup-backend.yaml,configsync.yaml,count-task-generator.yaml,countrequestpurge.yaml,eventpub.yaml,eventpull.yaml,moverequestpurge.yaml,pickrequestpurge.yaml,putaway-task-generator.yaml,putawaypurge.yaml,sim-iv.yaml,sim.yaml,ticker-server.yaml,ticker-consumer-not-req-use-count-task-gen-instead.yaml,batch-pick-generator.yaml,sim-streams-snapshot.yaml",
+            defaultValue: "All",
+            description: "* Select specific deployment or All.",
+            quoteValue: false,
+            visibleItemCount: 5,
+            descriptionPropertyValue: "All,Backend Cleanup,Config Sync,Count Task Generator,Count Request Purge,Event Pub,Event Pull,Move Request Purge,Pick Request Purge,Put Away Task Generator,Put Away Purge,SIM IV,SIM,Ticker Server,Ticker Consumer,Batch Pick Generator,Sim Streams Snapshot"
+        )
+
+        booleanParam(name: 'INIT', defaultValue: false, description: 'Do you want to run INIT job?')
+
+        booleanParam(name: 'APPLY_CONFIGMAP', defaultValue: false, description: 'Do you want to apply ConfigMaps?')
+
+        extendedChoice(
+            name: "CONFIGMAPS_TO_APPLY",
+            type: "PT_CHECKBOX",
+            multiSelectDelimiter: ",",
+            value: "All,cassandra-configurations.yaml",
+            defaultValue: "",
+            description: "Select specific CongfigMap or All to apply.",
+            quoteValue: false,
+            visibleItemCount: 5,
+            descriptionPropertyValue: "All,Cassandra Config"
+        )
+
+        booleanParam(name: 'APPLY_HPAS', defaultValue: false, description: 'Do you want to apply HPAs?')
+
+        extendedChoice(
+            name: "HPAS_TO_APPLY",
+            type: "PT_CHECKBOX",
+            multiSelectDelimiter: ",",
+            value: "All,cleanup-backend-hpa.yaml,countrequestpurge-hpa.yaml,eventpub-hpa.yaml,kong-hpa.yaml,moverequestpurge-hpa.yaml,pickrequestpurge-hpa.yaml,putawaypurge-hpa.yaml,sim-hpa.yaml,sim-iv-hpa.yaml,sim-streams-snapshot-hpa.yaml,ticker-consumer-hpa.yaml,ticker-server-hpa.yaml",
+            defaultValue: "",
+            description: "Select specific HPA or All to apply.",
+            quoteValue: false,
+            visibleItemCount: 5,
+            descriptionPropertyValue: "All,Backend Cleanup,Count Request Purge,Event Pub,Kong,Move Request Purge,Pick Request Purge,Put away Purge,Sim,Sim IV,Sim Streams Snapshot,Ticker Consumer,Ticker Server"
+        )
+
+        booleanParam(name: 'RESTART_DEPLOYMENTS', defaultValue: false, description: 'Do you want to restart deployments?')
+
+        extendedChoice(
+            name: "DEPLOYMENTS_TO_RESTART",
+            type: "PT_CHECKBOX",
+            multiSelectDelimiter: ",",
+            value: "All,cleanup-backend,configsync,count-task-generator,countrequestpurge,eventpub,eventpull,moverequestpurge,pickrequestpurge,putaway-task-generator,putawaypurge,sim-iv,sim,ticker-server,ticker-consumer",
+            defaultValue: "",
+            description: "Select specific deployment or All to restart.",
+            quoteValue: false,
+            visibleItemCount: 5,
+            descriptionPropertyValue: "All,Backend Cleanup,Config Sync,Count Task Generator,Count Request Purge,Event Pub,Event Pull,Move Request Purge,Pick Request Purge,Put Away Task Generator,Put Away Purge,SIM IV,SIM,Ticker Server,Ticker Consumer"
+        )        
+        
+    }
+
+    environment {
+        NAMESPACE = "${params.NAMESPACE}"
+        ALL_DEPLOYMENTS = "cleanup-backend,configsync,count-task-generator,countrequestpurge,eventpub,eventpull,moverequestpurge,pickrequestpurge,putaway-task-generator,putawaypurge,sim-iv,sim,ticker-server,ticker-consumer"
+        IKS_REPO_URL = "us.icr.io/inventory-mgmt-np/sim/webserver"
+        //SERVER_URL = "https://c2.us-east.containers.cloud.ibm.com:31059"
+    }    
+
+    stages {
+   
+        stage('Read Parameters and environment variables and verify') {
+            steps {
+                echo "APPLY_DEPLOYMENTS -> ${APPLY_DEPLOYMENTS}"
+                echo "RESTART_DEPLOYMENTS -> ${RESTART_DEPLOYMENTS}"
+                echo "DEPLOYMENTS_TO_APPLY -> ${DEPLOYMENTS_TO_APPLY}"
+                echo "CLUSTER -> ${CLUSTER}"
+
+                script {
+                    if (params.CURRENT_TAG != '') {
+                        env.TAG = "${params.CURRENT_TAG}"
+                        echo "Current TAG value is >> ${TAG}"
+                    } else {
+                        env.TAG = ''
+                        echo "Current TAG is empty >> ${TAG}"
+                    }
+
+                    if(APPLY_DEPLOYMENTS == 'false' && RESTART_DEPLOYMENTS == 'false'){
+                        echo "APPLY_DEPLOYMENTS and RESTART_DEPLOYMENTS are false"
+                        //sh "exit 1"
+                        error "APPLY_DEPLOYMENTS or RESTART_DEPLOYMENTS should be true"
+                    }
+
+                    if ("${CLUSTER}" == "WDC04") {
+                        echo "Selected cluster is WDC04"
+                        env.SERVER_URL = "https://c2.us-east.containers.cloud.ibm.com:31059"
+
+                        if ("${NAMESPACE}" == "default") {
+                            echo "Selected namespace is default"
+                            env.KUBECONFIG_ID = "np_wdc_cluster_kubeconfig"
+                            env.JENKINS_SECRETS = "np_wdc_jenkins_secrets"
+
+                        } else if ("${NAMESPACE}" == "sim") {
+                            echo "Selected namespace is sim"
+                            env.KUBECONFIG_ID = "np_wdc_cluster_kubeconfig_sim"
+                            env.JENKINS_SECRETS = "np_wdc_jenkins_secrets_sim"
+
+                        } else {
+                            error "Select at-least one namespace for deployment."
+                        }
+                        
+                    } else if ("${CLUSTER}" == "DAL13") {
+                        echo "Selected cluster is DAL13"
+                        env.SERVER_URL = "https://c112.us-south.containers.cloud.ibm.com:31276"
+
+                        if ("${NAMESPACE}" == "default") {
+                            echo "Selected namespace is default"
+                            env.KUBECONFIG_ID = "np_dal_cluster_kubeconfig"
+                            env.JENKINS_SECRETS = "np_dal_jenkins_secrets"
+
+                        } else if ("${NAMESPACE}" == "sim") {
+                            echo "Selected namespace is sim"
+                            env.KUBECONFIG_ID = "np_dal_cluster_kubeconfig_sim"
+                            env.JENKINS_SECRETS = "np_dal_jenkins_secrets_sim"
+
+                        } else {
+                            error "Select at-least one namespace for deployment."
+                        }
+                    } else {
+                       error "Select at-least one cluster for deployment." 
+                    }
+
+                    echo "KUBECONFIG_ID -> ${KUBECONFIG_ID}"
+                    echo "JENKINS_SECRETS -> ${JENKINS_SECRETS}"
+                }
+            }
+        }
+
+        stage('Checkout Source Code') {
+            steps {
+                echo "checkout souce code"
+                git url: 'git@github.ibm.com:Atul-Chauhan4/poc-sim-deployment-automation.git', credentialsId: 'ibm_github_credentials',  branch:'master'
+            }
+        }
+
+        stage('Pull Docker Image from 1st repo') {
+            when {
+                expression { TAG != '' }
+            }
+            steps {
+                    echo "pull docker Image"
+                    echo "Tag >>> ${TAG}"
+                    withCredentials([usernamePassword(credentialsId: 'artifactory_repo',  usernameVariable: 'artifactoryUser', passwordVariable: 'artifactoryPassword')]) {
+                    sh "echo ${artifactoryPassword} | docker login --username ${artifactoryUser} --password-stdin http://wce-sim-service-docker-local.artifactory.swg-devops.com"
+                    sh "docker pull wce-sim-service-docker-local.artifactory.swg-devops.com/sim/webserver/${TAG}"
+
+                    // create new tag
+                    sh "docker tag wce-sim-service-docker-local.artifactory.swg-devops.com/sim/webserver/${TAG} ${IKS_REPO_URL}/${TAG}"
+                    sh "docker logout"
+                }
+                }
+        }
+
+        stage('Push Docker image to IKS repository (2nd repo)') {
+            when {
+                expression { TAG != '' }
+            }
+            steps {
+                echo "push docker image to IKS repository"
+                withCredentials([usernamePassword(credentialsId: 'iks_repo',  usernameVariable: 'iksRepoUser', passwordVariable: 'iksRepoPassword')]) {
+                    sh "echo ${iksRepoPassword} | docker login --username ${iksRepoUser} --password-stdin us.icr.io"
+                    sh "docker push ${IKS_REPO_URL}/${TAG}"
+                    sh "docker logout"
+                }
+            }
+        }
+
+        stage('Run INIT job') {
+            when {
+                environment name: 'INIT', value: 'true'
+            }
+            steps {
+                echo "run init job"
+                script {
+                    kubernetesDeploy(configs: "deployment-automation/jobs/sim-init.yaml", kubeconfigId: "${KUBECONFIG_ID}")
+                }
+            }
+        }
+
+        stage('Apply ConfigMaps') {
+            when {
+                environment name: 'APPLY_CONFIGMAP', value: 'true'
+            }
+            steps {
+                echo "Apply ConfigMaps"
+                echo "------> ${CONFIGMAPS_TO_APPLY}"
+                script {
+                    if (CONFIGMAPS_TO_APPLY.contains('All')) {
+                        echo "apply all ConfigMaps"
+                        kubernetesDeploy(configs: "deployment-automation/configs/*", kubeconfigId: "${KUBECONFIG_ID}")
+                    } else {
+                        echo "apply specific ConfigMaps"
+
+                        def configMapsArr = CONFIGMAPS_TO_APPLY.split(",")
+                        for (configMap in configMapsArr) {
+                            echo "configMap >> ${configMap}"
+                            kubernetesDeploy(configs: "deployment-automation/configs/${configMap}", kubeconfigId: "${KUBECONFIG_ID}")
+                        }
+                    }
+
+                }
+            }
+        }
+
+        stage('Apply HPAs') {
+            when {
+                environment name: 'APPLY_HPAS', value: 'true'
+            }
+            steps {
+                echo "Apply HPAs"
+                echo "------> ${HPAS_TO_APPLY}"
+                script {
+                    if (HPAS_TO_APPLY.contains('All')) {
+                        echo "apply all HPAs"
+                        kubernetesDeploy(configs: "deployment-automation/hpas/*", kubeconfigId: "${KUBECONFIG_ID}")
+                    } else {
+                        echo "apply specific HPAs"
+                        
+                        def hpaArr = HPAS_TO_APPLY.split(",")
+                        for (hpa in hpaArr) {
+                            echo "hpa >> ${hpa}"
+                            kubernetesDeploy(configs: "deployment-automation/hpas/${hpa}", kubeconfigId: "${KUBECONFIG_ID}")
+                        }
+                    }
+
+                }
+            }
+        }   
+
+        stage('Deployment to 1st cluster') {
+            when {
+                environment name: 'APPLY_DEPLOYMENTS', value: 'true'
+            }
+            steps {
+                echo "Start Deployments ------> ${DEPLOYMENTS_TO_APPLY}"
+                script {
+                    if (DEPLOYMENTS_TO_APPLY.contains('All')) {
+                        echo "apply all Deployments"
+                        kubernetesDeploy(configs: "deployment-automation/deployments/*", kubeconfigId: "${KUBECONFIG_ID}")
+                    } else {
+                        echo "apply specific Deployment"                        
+                        def deploymentArr = DEPLOYMENTS_TO_APPLY.split(",")
+                        for (deployment in deploymentArr) {
+                            echo "deployment >> ${deployment}"
+                            kubernetesDeploy(configs: "deployment-automation/deployments/${deployment}", kubeconfigId: "${KUBECONFIG_ID}")
+                        }
+                    }
+
+                }
+            }
+        }                
+
+        stage('Restart deployments') {
+            when {
+                environment name: 'RESTART_DEPLOYMENTS', value: 'true'
+            }
+            steps {
+                echo "Restart deployments --> ${DEPLOYMENTS_TO_RESTART}"
+                script {
+                    if (DEPLOYMENTS_TO_RESTART.contains('All')) {
+                        echo "Restart all the deployments"
+                        def deploymentNameArr = ALL_DEPLOYMENTS.split(",")
+                        for (deploymentName in deploymentNameArr) {
+                            env.depploymentVar = "${deploymentName}"
+                            echo "depploymentVar >> ${depploymentVar}"
+
+                            withCredentials([string(credentialsId: "${JENKINS_SECRETS}", variable: 'api_token')]) {
+                                sh 'kubectl --token $api_token --server ${SERVER_URL} --insecure-skip-tls-verify=true rollout restart deployment/${depploymentVar} --namespace=${NAMESPACE} '
+                            }
+                        }
+                    } else {
+                        echo "Restart specific deployments"
+                        def deploymentNameArr = DEPLOYMENTS_TO_RESTART.split(",")
+                        for (deploymentName in deploymentNameArr) {
+                            env.depploymentVar = "${deploymentName}"
+                            echo "depploymentVar >> ${depploymentVar}"
+
+                            withCredentials([string(credentialsId: "${JENKINS_SECRETS}", variable: 'api_token')]) {
+                                sh 'kubectl --token $api_token --server ${SERVER_URL} --insecure-skip-tls-verify=true rollout restart deployment/${depploymentVar} --namespace=${NAMESPACE} '
+                            }
+                        }
+                    }
+                }
+            }
+        }   
+
+    }
+    
+}    

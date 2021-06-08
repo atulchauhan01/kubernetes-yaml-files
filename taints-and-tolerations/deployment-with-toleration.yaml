@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+  labels:
+    app: myapp
+spec:
+  replicas: 3
+  template:
+    #POD definitin under template, except apiVersion and kind
+    metadata:
+      name: nginx-pod
+      labels:
+        app: myapp
+    spec:
+      containers:
+      - name: nginx
+        image: nginx
+        imagePullPolicy: IfNotPresent
+      tolerations:
+      - key: "env"
+        operator: "Equal"
+        value: "nonprod"
+        effect: "NoExecute"
+  selector:
+    matchLabels:
+      app: myapp

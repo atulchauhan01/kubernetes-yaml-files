@@ -1,0 +1,85 @@
+# service-account need to be created before deployment using service-account.yaml
+
+# Pipeline resource for GIT
+apiVersion: tekton.dev/v1alpha1
+kind: PipelineResource
+metadata:
+  name: deployment-example-git
+spec:
+  type: git
+  params:
+    - name: url
+      value: https://github.com/atulchauhan01/kubernetes-yaml-files.git
+---
+# This task has steps that helps in debug
+# It will print all file in workspace folder
+# Code to read specific file from the GIT repository
+# and make the deployment
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: deployment-nginx
+spec:
+  resources:
+    inputs:
+      - name: workspace
+        type: git
+  steps:
+    - name: build-and-push-1
+      image: ubuntu
+      command:
+      - /bin/bash
+      args:
+      - -c
+      - |
+        set -ex
+        find /workspace  
+    - name: readme
+      image: ubuntu
+      script: cat workspace/tekton/task/nginx-deployment.yaml
+    - name: deploy-app
+      image: lachlanevenson/k8s-kubectl
+      command: ["kubectl"]
+      args:
+        - "apply"
+        - "-f"
+        - "workspace/tekton/task/nginx-deployment.yaml"
+---
+
+#Pipeline to deploy nginx
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: deploy-nginx-pipeline
+spec:
+  resources:
+    - name: workspace-pipeline #this name should match with resource and resources.name in pipelineRun
+      type: git
+  tasks:
+  - name: deployment-nginx
+    taskRef:
+      name: deployment-nginx
+    resources:
+      inputs:
+        - name: workspace # this name should match with resources name in task
+          resource: workspace-pipeline
+
+---
+# PipelineRun
+apiVersion: tekton.dev/v1beta1
+kind: PipelineRun
+metadata:
+  name: deploy-nginx-pipeline-run
+spec:
+  serviceAccountName: service-account
+  pipelineRef:
+    name: deploy-nginx-pipeline
+  resources:
+    - name: workspace-pipeline
+      resourceRef:
+        name: deployment-example-git
+
+# Steps:
+# Create service account using service-account.yaml
+# kubect create -f deployment-taskrun.yaml
+# pipeline should be executed as create always

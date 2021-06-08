@@ -1,0 +1,135 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    type: backend
+    app: sim-iv
+  name: sim-iv
+  namespace: ${NAMESPACE}
+spec:
+  replicas: ${REPLICAS}
+  selector:
+    matchLabels:
+      type: backend
+      app: sim-iv
+  template:
+    metadata:
+      labels:
+        type: backend
+        app: sim-iv
+      annotations:
+        prometheus.io/port: '9090'
+        prometheus.io/scrape: 'true'
+    spec:
+      containers:
+        - args:
+            - backend
+            - ivadjustment:15
+          env:
+            - name: SIM_CASSANDRA_KEYSPACE
+              valueFrom:
+                configMapKeyRef:
+                  key: sim.keyspace
+                  name: cassandra-configurations
+            - name: SIM_CASSANDRA_CONTACT_POINTS
+              valueFrom:
+                configMapKeyRef:
+                  key: sim.contactpoints
+                  name: cassandra-configurations
+            - name: SIM_CASSANDRA_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  key: username
+                  name: cassandra-credentials
+            - name: SIM_CASSANDRA_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: password
+                  name: cassandra-credentials
+            - name: SIM_KAFKA_BOOTSTRAP_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  key: sim_kafka_bootstrap_servers
+                  name: kafka-configurations
+            - name: SIM_KAFKA_TOPIC_PREFIX
+              valueFrom:
+                configMapKeyRef:
+                  key: sim_kafka_topic_prefix
+                  name: kafka-configurations
+            - name: SIM_KAFKA_PRODUCER_ENABLE_IDEMPOTENCE
+              valueFrom:
+                configMapKeyRef:
+                  key: sim_kafka_producer_enable_idempotence
+                  name: kafka-configurations
+            - name: SIM_KAFKA_ADDITIONAL_CONFIG
+              valueFrom:
+                configMapKeyRef:
+                  key: sim_kafka_additional_config
+                  name: kafka-configurations
+            - name: SIM_KAFKA_CONSUMER_GROUP_PREFIX
+              valueFrom:
+                configMapKeyRef:
+                  key: sim_kafka_consumer_group_prefix
+                  name: kafka-configurations
+            - name: NEW_RELIC_LICENSE_KEY
+              valueFrom:
+                configMapKeyRef:
+                  key: newrelic_license_key
+                  name: newrelic-configurations
+            - name: NEW_RELIC_PREFIX
+              valueFrom:
+                configMapKeyRef:
+                  key: newrelic_app_name_prefix
+                  name: newrelic-configurations
+            - name: NEW_RELIC_APP_NAME
+              value: $(NEW_RELIC_PREFIX)iv-publisher
+            - name: SIM_TICK_TOPIC_NAME
+              value: ticker
+            - name: SIM_LOG_CHANNEL
+              valueFrom:
+                configMapKeyRef:
+                  key: log_channel
+                  name: graylog-configurations
+            - name: SIM_LOG_TOPIC
+              valueFrom:
+                configMapKeyRef:
+                  key: log_topic
+                  name: graylog-configurations
+            - name: SIM_KAFKA_GRAYLOG_ADDITIONAL_CONFIG
+              valueFrom:
+                configMapKeyRef:
+                  key: graylog_additional_config
+                  name: graylog-configurations
+            - name: SIM_GRAYLOG_ADDR
+              valueFrom:
+                configMapKeyRef:
+                  key: graylog_addr
+                  name: graylog-configurations
+            - name: SIM_LOG_LEVEL
+              value: NOTICE                  
+          image: ${IKS_REPO_URL}/${TAG}
+          imagePullPolicy: IfNotPresent
+          name: sim-iv
+          resources:
+            limits:
+              cpu: 1250m
+              memory: 4G
+            requests:
+              cpu: 750m
+              memory: 2G
+          volumeMounts:
+            - mountPath: /certs
+              name: kafka-jks-volume
+      tolerations:
+      - key: "env"
+        operator: "Equal"
+        value: ${TOLERATIONS_VALUE}
+        effect: "NoExecute"                    
+      volumes:
+        - configMap:
+            defaultMode: 420
+            items:
+              - key: truststore
+                path: kafka.truststore.jks
+            name: kafka-jks
+          name: kafka-jks-volume

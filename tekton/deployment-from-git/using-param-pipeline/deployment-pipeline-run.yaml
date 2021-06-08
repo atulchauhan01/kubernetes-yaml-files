@@ -1,0 +1,19 @@
+# PipelineRun
+apiVersion: tekton.dev/v1beta1
+kind: PipelineRun
+metadata:
+  name: deploy-nginx-pipeline-run
+spec:
+  pipelineRef:
+    name: deployment-pipeline
+  params:
+  - name: imageUrl
+    value: nginx 
+  - name: imageTag
+    value: latest
+  resources:
+    - name: workspace-pipeline
+      resourceRef:
+        name: deployment-example-git
+  serviceAccountName: service-account
+         

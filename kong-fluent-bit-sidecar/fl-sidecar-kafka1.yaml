@@ -1,0 +1,61 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: counter
+spec:
+  containers:
+  - name: count
+    image: busybox
+    args:
+    - /bin/sh
+    - -c
+    - >
+      i=0;
+      while true;
+      do
+        echo "$(date) INFO $i" >> /var/log/2.log;
+        i=$((i+1));
+        sleep 1;
+      done      
+    volumeMounts:
+    - name: varlog
+      mountPath: /var/log
+  - name: fluent-bit
+    image: fluent/fluent-bit:1.4
+    ports:
+      - containerPort: 2020
+    volumeMounts:
+      - name: varlog
+        mountPath: /var/log
+      - name: fluent-bit-config
+        mountPath: /fluent-bit/etc/
+      - name: mnt
+        mountPath: /mnt
+      - name: kafka-jks-volume
+        mountPath: /certs
+        
+  volumes:
+      - name: varlog
+        hostPath:
+          path: /var/log
+      - name: fluent-bit-config
+        configMap:
+          name: fluent-bit-config
+      - name: mnt
+        hostPath:
+          path: /mnt
+      - name: kafka-jks-volume
+        configMap:
+          defaultMode: 420
+          items:
+            - key: truststore
+              path: kafka.truststore.jks
+          name: kafka-jks
+        
+          
+          
+          
+          
+          
+          
+    
